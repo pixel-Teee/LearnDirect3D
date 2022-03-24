@@ -2,14 +2,21 @@ cmake_minimum_required(VERSION 3.5)
 
 project(LearnDirect3D)
 
+# executable
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+# module libraries
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+# static libraries
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
+
 # CMAKE_CURRENT_SOURCE_DIR : current being processed cmakelists.txt's directory
 set(Src_Root_Path ${CMAKE_CURRENT_SOURCE_DIR})
 
 file(GLOB_RECURSE Source_List
     LIST_DIRECTORIES FALSE
     RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-    ${Src_Root_Path}/*.cpp
-    ${Src_Root_Path}/*.h
+    ${Src_Root_Path}/LearnDirect3D/*.cpp
+    ${Src_Root_Path}/LearnDirect3D/*.h
 )
 
 #foreach(Item IN ITEMS ${Source_List})
@@ -28,3 +35,7 @@ foreach(Item IN ITEMS ${Source_List})
     source_group(${Source_Path_MSVC} FILES ${Item})
 
 endforeach()
+
+target_compile_features(LearnDirect3D
+    PUBLIC cxx_std_17
+)
