@@ -223,6 +223,187 @@ Factory的接口用于获取显示适配器，**由于一个显卡可以和多�
 
 
 
+# 初始化Direct3D
+
+1.用D3D12CreateDevice函数创建ID3D12Device接口实例。
+
+2.创建一个ID3D12Fence对象，并查询描述符的大小。
+
+3.检测用户设备对4X MSAA质量级别的支持情况。
+
+4.依次创建命令队列、命令列表分配器和主命令列表。
+
+5.描述并创建交换链。
+
+6.创建应用程序所需要的描述符堆。
+
+7.调整后台缓冲区的大小，并为它创建渲染目标视图。
+
+8.创建深度/模板缓冲区以及与之关联的深度/模板视图。
+
+9.设置视口和裁剪矩形。
+
+
+
+## 创建设备
+
+初始化Direct3D，需要先创建Direct3D设备(ID3D12Device)，此设备代表着一个**显示适配器。**
+
+
+
+## 创建围栏并获取描述符大小
+
+查询到的描述符大小，要缓存起来。
+
+
+
+## 检测对4X MSAA质量级别的支持
+
+
+
+## 创建命令队列和命令列表
+
+
+
+## 描述并创建交换链
+
+创建交换链，需要填写一份DXGI_SWAP_CHAIN_DESC结构体实例。
+
+
+
+## 创建描述符堆
+
+Direct3D 12以ID3D12DescriptorHeap接口表示描述符堆，并用ID3D12Device::CreateDescriptorHeap方法来创建它。
+
+
+
+ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart方法来获得描述符堆中的第一个描述符的句柄。
+
+
+
+## 创建渲染目标视图
+
+
+
+IDXGISwapChain::GetBuffer获取ID3D12Resource资源，然后传入ID3D12Device::CreateRenderTargetView创建渲染目标视图。
+
+
+
+## 创建深度/模板缓冲区及其视图
+
+深度缓冲区要创建2D纹理。
+
+
+
+纹理是一种2D资源(ID3D12Resource)，要通过填写D3D12_RESOURCE_DESC结构体来描述纹理资源，再用ID3D12Device::CreateCommittedResource方法创建它。
+
+
+
+CreateCommittedResource方法将根据我们所提供的属性创建一个资源与一个堆，并把该资源提交到这个堆中。
+
+
+
+由默认堆、上传堆、回读堆3种类型。
+
+
+
+## 设置视口
+
+填写D3D12_VIEWPORT结构体，使用ID3D12GraphicsCommandList::RSSetViewports来设置视口。
+
+
+
+多视口是一种用于对多个渲染目标同事进行渲染的高级渲染技术。
+
+
+
+## 设置裁剪矩形
+
+
+
+相对于后台缓冲区定义一个裁剪矩形，在此矩形外的像素都将被剔除。
+
+
+
+裁剪矩形由类型为RECT的D3D12_RECT结构体定义而成。
+
+
+
+要用ID3D12GraphicsCommandList::RSSetScissorRects方法来设置裁剪矩形。
+
+
+
+# 计时与动画
+
+性能计时器所用的时间度量单位叫做计数(count)，可调用**QueryPerformanceCounter**函数来获取性能计时器测量的当前时刻值(以计时为单位)。
+
+
+
+```C++
+//当前时刻值
+__int64 currTime;
+QueryPerformanceCounter((LARGER_INTEGER*)&currTime);
+
+//每秒有多少计数
+__int64 countsPerSec;
+QueryPerformanceFrequency((LARGE_INTEGER*)&countsPerSec);
+
+//每个计数需要花费的秒
+mSeconsPerCount = 1.0 / (double)countsPerSec;
+
+//计数乘以秒，就可以获取两个间隔时刻所花费的时间
+```
+
+
+
+mBaseTime，关卡开启的时刻，一个很小的值。
+
+mPausedTime，累积的暂停时间。
+
+mStopTime，停止的总共时间。
+
+
+
+# 应用程序框架示例
+
+
+
+D3DApp类，提供了创建应用程序主窗口、运行程序消息循环、处理窗口消息以及初始化Direct3D等多种功能的函数。
+
+
+
+我们可以根据需求通过实例化一个继承自D3DApp的类型，重写框架的虚函数。
+
+
+
+有一些函数介绍：
+
+~D3DApp，析构函数用于释放D3DApp中所用的COM接口对象并刷新命令队列。
+
+析构函数中刷新命令队列的原因是：销毁GPU引用的资源以前，**必须等待GPU处理完队列中的所有命令。**
+
+
+
+OnResize，后台缓冲区可以使用IDXGISwapChain::ResizeBuffers方法来调整后台缓冲区的尺寸。
+
+深度/模板缓冲区，则需要在销毁后根据新的工作区大小进行重建。
+
+**渲染目标和深度/模板的视图也应该重新创建。**
+
+
+
+D3DApp::CalculateFrameStats相比于FPS更加直观，因为它计算了一帧所需要花费的时间，而不是每秒所渲染的帧数。然后设置到窗口的标题上。
+
+
+
+
+
+
+
+
+
+
+
 
 
 

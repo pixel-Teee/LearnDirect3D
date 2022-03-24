@@ -23,7 +23,7 @@ file(GLOB_RECURSE Source_List
 #    message(${Item})
 #endforeach()
 
-add_executable(LearnDirect3D ${Source_List})
+add_executable(LearnDirect3D WIN32 ${Source_List})
 
 foreach(Item IN ITEMS ${Source_List})
     # get the Item's directory path, don't include the file name
@@ -34,6 +34,7 @@ foreach(Item IN ITEMS ${Source_List})
     # Item will place into the group
     source_group(${Source_Path_MSVC} FILES ${Item})
 
+    target_include_directories(LearnDirect3D PUBLIC ${Source_Path_MSVC})
 endforeach()
 
 target_compile_features(LearnDirect3D
