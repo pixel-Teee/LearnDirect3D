@@ -1,4 +1,4 @@
-# 顶点与输入布局
+#  顶点与输入布局
 
 定义了顶点结构体之后，需要向Direct3D提供该顶点结构体的描述，使它了解应该怎样来处理结构体中的每个成员。称为**输入布局描述(input layout description)。**
 
@@ -383,7 +383,7 @@ mMappedData = nullptr;
 
 
 
-## 上传缓冲区辅助函数
+# 上传缓冲区辅助函数
 
 
 
@@ -393,7 +393,278 @@ UploadBuffer.h封装了上传缓冲区，实现了上传缓冲区的构造与析
 
 
 
-//200
+# 常量缓冲区描述符
+
+
+
+利用描述符将常量缓冲区绑定至渲染流水线上。
+
+常量缓冲区描述符要存放在以D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV类型所创建的描述符堆里面。
+
+为了存放这些新类型的描述符，我们需要为之创建以下类型的新式描述符堆：
+
+```c++
+D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+cbvHeapDesc.NumDescriptors = 1;
+cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+cbvHeapDesc.NodeMask = 0;
+
+ComPtr<ID3D12ResourceHeap> mCbvHeap;
+md3dDevice->CreateDescriptorHeap(&cbvHeapDesc,
+IID_PPV_ARGS(&mCbvHeap));
+```
+
+
+
+再通过调用ID3D12Device::CreateConstantBufferView方法，便可以创建常量缓冲区：
+
+```c++
+//绘制物体所用的常量数据
+struct ObjectConstants
+{
+    XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+};
+
+//此常量缓冲区存储了绘制n个物体所需的常量数据
+std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
+mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>
+(md3dDevice.Get(), n, true);
+
+UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+
+//缓冲区的起始地址
+D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->
+    GetGPUVirtualAddress();
+
+//偏移到常量缓冲区中绘制第i个物体所需的常量数据
+int boxCBufIndex = i;
+cbAddresss += boxCBufIndex * objCBByteSize;
+
+D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+cbvDesc.BufferLocation = cbAddress;
+cbvDesc.SizeInBytes = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+
+md3dDevice->CreateConstantBufferView(
+&cbvDesc,
+mCbvHeap->GetCPUDescriptorHandleForHeapStart()
+);
+```
+
+
+
+描述符结构体存储了常量缓冲区的GPU地址，**然后创建描述符是创建在描述符堆里面的。**
+
+
+
+# 根签名和描述符表
+
+
+
+在绘制调用开始之前，我们应将不同的着色器程序所需的各种类型的资源绑定到渲染流水线上。
+
+不同类型的资源会被绑定到特定的寄存器槽上，以供着色器程序使用。
+
+
+
+根签名的定义是：在执行绘制命令之前，那些应用程序将绑定到渲染流水线上的资源，
+
+**它们会被映射到着色器的对应输入寄存器。**
+
+
+
+根签名用ID3D12RootSignature接口来表示，并以一组描述绘制调用过程中着色器所需资源的**根参数**定义而成。
+
+
+
+根参数可以是根常量、根描述符或者描述符表。
+
+
+
+描述符表指定的是描述符堆中**存有描述符的一块连续区域。**
+
+```c++
+//根参数可以是描述符表、根描述符或者根常量
+CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+
+//创建一个只存有一个CBV的描述符表
+CD3DX12_DESCRIPTOR_RANGE cbvTable;
+cbvTable.Init(
+D3D12_DESCRIPTOR_RANGE_TYPE_CBV,
+1,//表中的描述符数量
+0//将这段描述符区域绑定至此基准着色器寄存器
+);
+
+slotRootParameter[0].InitAsDescriptorTable(
+1,//描述符区域的数量
+&cbvTable);//指向描述符区域的数组
+
+//根签名由一组根参数组成
+CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr,
+D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+//创建一个仅含槽位的根签名
+ComPtr<ID3DBlob> serializeRootSig = nullptr;
+ComPtr<ID3DBlob> errorBlob = nullptr;
+
+HRESULT hr = D3D12SerializeRootSignature(&rootSigDesc,
+D3D_ROOT_SIGNATURE_VERSION_1,
+seralizerdRootSig.GetAddressOf(),
+errorBlob.GetAddressOf());
+
+ThrowIfFailed(md3dDevice->CreateRootSignature(
+0,
+serializerRootSig->GetBufferSize(),
+IID_PPV_ARGS(&mRootSignature)
+));
+```
+
+
+
+```C++
+CD3DX12_ROOT_PARAMETER slotRootParameter[1];
+
+CD3DX12_DESCRIPTOR_RANGE cbvTable;
+cbvTable.Init(
+D3D12_DESCRIPTOR_RANGE_TYPE_CBV,//描述符表的类型
+1,//表中描述符的数量
+0//将这段描述符区域绑定至此基址着色器寄存器
+);
+slotRootParameter[0].InitAsDescriptorTable(
+1,//描述符区域的数量
+&cbvTable//指向描述符区域数组的指针
+);
+```
+
+根参数，目的是将含有一个CBV的描述符表绑定到常量缓冲区寄存器0。
+
+
+
+根签名只定义了应用程序要绑定到渲染流水线的资源，**却没有真正地执行任何资源的绑定。**
+
+只要率先通过命令列表设置好根签名，我们就能用ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable方法令描述符表与渲染流水线相互绑定。
+
+
+
+```c++
+mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+
+ID3D12DescriptorHeap* descriptorHeaps[] = {mCBVHeap.Get()};
+
+mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps),
+descriptorHeaps);
+
+//偏移至此次绘制调用所需的CBV处
+CD3DX12_GPU_DESCRIPTOR_HANDLE cbv(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
+
+cbv.Offset(cbvIndex, mCbvSrvUavDesscriptorSize);
+
+//根参数索引和相应的描述符堆句柄
+mCommandList->SetGraphicsRootDescriptorTable(0, cbv);
+```
+
+
+
+所以，根签名由根参数组成，根参数由描述符表初始化，描述符表描述了描述符堆里面的描述符数量，
+
+以及要绑定的寄存器槽号。
+
+
+
+然后运行的时候，绑定根签名，**以及绑定真正的资源，描述符堆。**
+
+
+
+# 编译着色器
+
+在Direct3D中，着色器程序必须先被编译为一种可移植的字节码。
+
+可以在运行期间用下列函数对着色器进行编译：
+
+```c++
+HRESULT D3DCompileFromFile(
+LPCWSTR pFileName,
+const D3D_SHADER_MACRO* pDefines,
+ID3DInclude* pInclude,
+LPCSTR pEntryPoint,
+LPCSTR pTarget,
+UINT Flags1,
+UINT Flags2,
+ID3DBlob **ppCode,
+ID3DBlob **ppErrorMsgs
+);
+```
+
+
+
+第二个和第三个暂时为空，后面用到。
+
+第四个是着色器的入口点函数名。
+
+第五个指定着色器类型和版本的字符串。
+
+第六个指示对着色器代码应当如何编译的标志。
+
+第七个暂时为空。
+
+第八个存储编译好的着色器对象字节码。
+
+第九个存储报错的字符串。
+
+
+
+d3dUtil.h/.cpp提供了CompileShader这个函数用来编译着色器。
+
+
+
+离线编译//208。
+
+
+
+# 光栅器状态
+
+光栅器状态由结构体D3D12_RASTERIZER_DESC来表示。
+
+
+
+```c++
+CD3D12_RASTERIZER_DESC rsDesc(D3D12_DEFAULT);
+rsDesc.FillMode = D3D12_FILL_MODE_WIREFRAME;
+rsDesc.CullMode = D3D12_CULL_MODE_NONE;
+```
+
+
+
+# 流水线状态对象
+
+
+
+流水线状态对象，用ID3D12PipelineState接口来表示。
+
+要创建PSO，我们需要填写D3D12_GRAPHICS_PIPELINE_STATE_DESC结构体实例。
+
+
+
+大部分参数可以用D3D12_DEFAULT填充。
+
+
+
+```c++
+//重置命令列表并指定PSO
+mCommandList->Reset(mDirectCmdListAlloc.Get(), mPSO1.Get());
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
