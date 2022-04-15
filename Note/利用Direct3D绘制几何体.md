@@ -156,7 +156,7 @@ typedef struct D3D12_SUBRESOURCE_DATA
 }D3D12_SUBRESOURCE_DATA;
 ```
 
-![image-20220406162959502](../Image/image-20220406162959502.png)
+![image-20220406162959502](../Image/4.png)
 
 VertexBufferGPU：默认堆
 
